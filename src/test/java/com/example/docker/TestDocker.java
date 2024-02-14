@@ -3,20 +3,19 @@ package com.example.docker;
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.BuildImageCmd;
 import com.github.dockerjava.api.command.BuildImageResultCallback;
-import com.github.dockerjava.api.model.Container;
-import com.github.dockerjava.api.model.Image;
-import com.github.dockerjava.api.model.SearchItem;
+import com.github.dockerjava.api.command.EventsCmd;
+import com.github.dockerjava.api.model.*;
 import com.github.dockerjava.core.DefaultDockerClientConfig;
 import com.github.dockerjava.core.DockerClientConfig;
 import com.github.dockerjava.core.DockerClientImpl;
+import com.github.dockerjava.core.command.EventsResultCallback;
 import com.github.dockerjava.httpclient5.ApacheDockerHttpClient;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
+import java.io.IOException;
 import java.time.Duration;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 public class TestDocker {
 
@@ -54,6 +53,40 @@ public class TestDocker {
     @Test
     public void buildImage() {
         DockerClient client = initDockerClient();
+        BuildImageCmd  buildImageCmd;
+        String imageId = "";
+        Set<String> tags = new HashSet<>();
+        tags.add("opus-backend:v1");
+        try {
+            buildImageCmd = client.buildImageCmd()
+                    .withTags(tags)
+                    .withDockerfile(new File("C:\\Users\\raghv\\Documents\\Opus\\opus-backend\\Dockerfile"))
+                    .withPull(true);
+
+            BuildImageResultCallback buildCallback = new BuildImageResultCallback() {
+                @Override
+                public void onNext(BuildResponseItem item) {
+                    // Handle each build response item (event)
+//                    System.out.println("Received event: " + item.getRawValues());
+                    System.out.println( item.getStream());
+                }
+            };
+
+            // Execute the build and wait for completion
+            imageId = buildImageCmd.exec(buildCallback).awaitImageId();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        System.out.println(imageId);
+
+    }
+
+    @Test
+    public void buildImageWithoutEvents() {
+        DockerClient client = initDockerClient();
+        BuildImageCmd  buildImageCmd;
         String imageId = "";
         Set<String> tags = new HashSet<>();
         tags.add("opus-backend:v1");
@@ -96,4 +129,24 @@ public class TestDocker {
 //                .withImage();
     }
 
+    @Test
+    public void getEvents() throws IOException {
+        DockerClient dockerClient = initDockerClient();
+        try {
+            // Attach a callback to handle events
+            dockerClient.eventsCmd().exec(new EventsResultCallback() {
+                @Override
+                public void onNext(Event event) {
+                    // Handle the event
+                    System.out.println("Received event: " + event);
+                }
+            }).awaitCompletion();
+
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } finally {
+            // Close the Docker client when done
+            dockerClient.close();
+        }
+    }
 }
